@@ -1,0 +1,37 @@
+# Backend / API
+fastapi
+uvicorn[standard]
+
+# Frontend
+streamlit
+
+# Databases
+psycopg2-binary        # PostgreSQL
+pymongo                # MongoDB
+qdrant-client           # Vector DB
+neo4j                   # Graph DB
+
+# Document / data processing
+pandas
+openpyxl                # Excel
+pdfplumber               # PDF text extraction
+pymupdf                  # PDF/image handling (fitz)
+pytesseract               # OCR (needs Tesseract installed separately)
+pillow
+
+# ML
+scikit-learn
+numpy
+
+# LLM / Agents
+langgraph
+langchain
+langchain-community
+ollama
+
+# Observability
+langfuse
+
+# Utilities
+python-dotenv
+pydantic
