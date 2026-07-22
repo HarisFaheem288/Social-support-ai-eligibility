@@ -47,6 +47,10 @@ st.markdown("""
         background: linear-gradient(135deg, #fef2f2 0%, #fff5f5 100%);
         border-left: 5px solid #dc2626;
     }
+    .decision-soft-decline {
+        background: linear-gradient(135deg, #fffbeb 0%, #fffdf5 100%);
+        border-left: 5px solid #f59e0b;
+    }
     .decision-title {
         font-size: 1.4rem;
         font-weight: 700;
@@ -142,9 +146,12 @@ col1, col2 = st.columns(2)
 with col1:
     bank_statement = st.file_uploader("🏦 Bank Statement (PDF)", type=["pdf"])
     emirates_id = st.file_uploader("🪪 Emirates ID (image)", type=["png", "jpg", "jpeg"])
+    resume = st.file_uploader("📄 Resume (PDF) — optional", type=["pdf"])
 with col2:
     credit_report = st.file_uploader("📊 Credit Report (PDF)", type=["pdf"])
     assets_liabilities = st.file_uploader("📈 Assets/Liabilities (Excel)", type=["xlsx"])
+
+st.caption("💡 Resume is optional — if omitted, employment history and family size use conservative defaults instead of your actual data.")
 
 all_uploaded = all([bank_statement, credit_report, emirates_id, assets_liabilities])
 uploaded_count = sum(bool(f) for f in [bank_statement, credit_report, emirates_id, assets_liabilities])
@@ -177,6 +184,8 @@ if submit:
                 "assets_liabilities": (assets_liabilities.name, assets_liabilities.getvalue(),
                                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
             }
+            if resume is not None:
+                files["resume"] = (resume.name, resume.getvalue(), "application/pdf")
             resp = requests.post(f"{API_URL}/assess", files=files, timeout=280)
             resp.raise_for_status()
             result = resp.json()
@@ -196,25 +205,30 @@ if submit:
 # ---------- Result display ----------
 if st.session_state.result:
     result = st.session_state.result
-    is_approved = result["decision"] == "Approved"
-    card_class = "decision-approved" if is_approved else "decision-declined"
-    emoji = "✅" if is_approved else "❌"
+    decision = result["decision"]
+
+    if decision == "Approved":
+        card_class, emoji = "decision-approved", "✅"
+    elif decision == "Soft Decline":
+        card_class, emoji = "decision-soft-decline", "⚠️"
+    else:
+        card_class, emoji = "decision-declined", "❌"
 
     st.markdown(f"""
     <div class="decision-card {card_class}">
-        <div class="decision-title">{emoji} {result['decision']}
+        <div class="decision-title">{emoji} {decision}
             <span class="confidence-badge">{result['confidence']*100:.0f}% confidence</span>
         </div>
         <div style="color:#374151;">Applicant: <strong>{result['full_name']}</strong></div>
     </div>
     """, unsafe_allow_html=True)
 
+    if decision == "Soft Decline":
+        st.warning("This case is borderline and has been flagged for human caseworker review rather than an automatic decision.")
+
     def fmt_aed(value):
-        """Format currency compactly for large values, full precision for smaller ones."""
         if value >= 1_000_000:
             return f"AED {value/1_000_000:.2f}M"
-        elif value >= 1_000:
-            return f"AED {value:,.0f}"
         return f"AED {value:,.0f}"
 
     row1_col1, row1_col2 = st.columns(2)
@@ -224,6 +238,11 @@ if st.session_state.result:
     row2_col1, row2_col2 = st.columns(2)
     row2_col1.metric("Total Liabilities", fmt_aed(result['total_liabilities_aed']))
     row2_col2.metric("Credit Score", f"{result['credit_score']}")
+
+    row3_col1, row3_col2, row3_col3 = st.columns(3)
+    row3_col1.metric("Employment Status", result.get("employment_status") or "Unknown")
+    row3_col2.metric("Years Employed", result.get("years_employment") if result.get("years_employment") is not None else "Unknown")
+    row3_col3.metric("Family Size", result.get("family_size") if result.get("family_size") is not None else "Unknown")
 
     st.markdown("##### 🧠 AI Reasoning")
     st.info(result["reasoning"])

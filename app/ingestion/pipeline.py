@@ -11,18 +11,28 @@ from datetime import datetime
 from app.ingestion.pdf_ingest import parse_bank_statement, parse_credit_report
 from app.ingestion.excel_ingest import parse_assets_liabilities
 from app.ingestion.id_ingest import parse_emirates_id
+from app.ingestion.resume_ingest import parse_resume
 from app.db.connections import get_postgres_connection, get_mongo_db
 
 
 def ingest_applicant(doc_folder: str) -> dict:
     """
     doc_folder must contain: bank_statement.pdf, credit_report.pdf,
-    emirates_id_mock.png, assets_liabilities.xlsx
+    emirates_id_mock.png, assets_liabilities.xlsx, resume.pdf
     """
     bank_data = parse_bank_statement(f"{doc_folder}/bank_statement.pdf")
     credit_data = parse_credit_report(f"{doc_folder}/credit_report.pdf")
     id_data = parse_emirates_id(f"{doc_folder}/emirates_id_mock.png")
     assets_data = parse_assets_liabilities(f"{doc_folder}/assets_liabilities.xlsx")
+
+    # Resume is optional — some applicants may not have one (e.g. long-term unemployed).
+    # If missing, downstream fields fall back to conservative defaults.
+    import os
+    resume_path = f"{doc_folder}/resume.pdf"
+    if os.path.exists(resume_path):
+        resume_data = parse_resume(resume_path)
+    else:
+        resume_data = {"employment_status": None, "years_employment": None, "family_size": None}
 
     # Derive monthly income from bank statement credits (simple heuristic for prototype)
     monthly_income = 0.0
@@ -43,12 +53,16 @@ def ingest_applicant(doc_folder: str) -> dict:
         "credit_score": credit_data.get("credit_score"),
         "total_assets_aed": assets_data.get("total_assets_aed"),
         "total_liabilities_aed": assets_data.get("total_liabilities_aed"),
+        "employment_status": resume_data.get("employment_status"),
+        "years_employment": resume_data.get("years_employment"),
+        "family_size": resume_data.get("family_size"),
         "ingested_at": datetime.utcnow().isoformat(),
         "raw": {
             "bank_statement": bank_data,
             "credit_report": credit_data,
             "emirates_id": id_data,
             "assets_liabilities": assets_data,
+            "resume": resume_data,
         },
     }
     return combined
